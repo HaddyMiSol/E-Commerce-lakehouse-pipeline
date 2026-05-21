@@ -12,14 +12,20 @@ The data platform is engineered with a completely decoupled storage and compute 
 
 [Kaggle API] 
      │
-     ▼ (Zero-Local-Footprint Streaming via Python/Boto3)
+     ▼ (Zero-Local-Footprint Streaming via Python/Boto3)         
 [AWS S3 Bucket: `kaggle-dataset-haddy/bronze/`]
      │
      ▼ (Incremental Batch Loading via Auto Loader)
-[Databricks Serverless Compute] ──(Unity Catalog Managed Volumes)──► [Metadata Checkpoints/Schemas]
+[Databricks Serverless Compute] ──(Unity Catalog Managed Volumes)──► [Metadata Checkpoints/Schemas] 
      │
      ▼ (Dynamic Multi-Table Loop)
-[Workspace Catalog: `schema_bronze` Schema Delta Tables]
+[Workspace Catalog: `schema_bronze` Schema Delta Tables] 
+
+See images below;
+
+![System Architecture](./images/kaggle_s3_streamer.png)
+![System Architecture](./images/s3_databricks_ingestion.png)
+![System Architecture](./images/tables.png)
 
 ---
 
