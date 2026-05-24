@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: bronze_layer
+    catalog: workspace
+    schema: schema_bronze
+    tables:
+      - name: customers
+      - name: sessions
+      - name: products
+      - name: events
+      - name: order_items
+      - name: orders
+      - name: reviews
