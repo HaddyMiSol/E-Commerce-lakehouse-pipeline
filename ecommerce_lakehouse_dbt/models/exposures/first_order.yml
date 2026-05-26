@@ -1,0 +1,11 @@
+exposures:
+
+  - name: first_order
+    type: analysis
+    description: Generated user's first order
+    depends_on: 
+        - ref('stg_orders')
+
+    owner:
+      name: Arowolo Oluwabukola
+      email: arowolooluwabukola14@gmail.com

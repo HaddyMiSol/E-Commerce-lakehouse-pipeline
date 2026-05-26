@@ -40,3 +40,4 @@ models:
     marts:
       +materialized: table
       +file_format: delta
+      +schema: schema_gold

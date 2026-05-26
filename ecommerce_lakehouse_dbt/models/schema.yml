@@ -59,17 +59,17 @@ models:
           # checks that order time is not greater than current system clock
           - dbt_utils.expression_is_true:
                 expression: "<= current_timestamp()"
-      - name: subtotal_usd
-        description: "subtotal value cast to decimal currency."
+      - name: amount_before_discount_usd
+        description: "amount_before_discount_usd cast to decimal currency."
         tests:
           - not_null
-          # checks that subtotal value is <= total value spent
+          # checks that amount_before_discount_usd is >= amount_after_discount_usd
           - dbt_utils.expression_is_true:
-                expression: "<= total_usd"
+                expression: ">= amount_after_discount_usd"
                 config:
                     severity: warn
-      - name: total_usd
-        description: "Total checkout value cast to decimal currency."
+      - name: amount_after_discount_usd
+        description: "amount_after_discount_usd cast to decimal currency."
         tests:
           - not_null
           # ensures total spent is never negative

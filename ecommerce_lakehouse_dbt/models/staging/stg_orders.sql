@@ -23,8 +23,8 @@ cleaned_orders as (
         lower(trim(source)) as acquisition_channel,
         
         -- double to decimal
-        cast(subtotal_usd as decimal(10, 2)) as subtotal_usd,
-        cast(total_usd as decimal(10, 2)) as total_usd,
+        cast(subtotal_usd as decimal(10, 2)) as amount_before_discount_usd,
+        cast(total_usd as decimal(10, 2)) as amount_after_discount_usd,
         
         -- convert whole number percentages (e.g. 5) to fractions (0.0500)
         cast(discount_pct / 100.0 as decimal(5, 4)) as discount_percentage

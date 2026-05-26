@@ -10,7 +10,7 @@ with raw_order_items as (
 cleaned_order_items as (
     select
         -- cast to integers
-        cast(order_id as int) as event_id,
+        cast(order_id as int) as order_id,
         cast(product_id as int) as product_id,
         
         -- convert decimal counts to integers
