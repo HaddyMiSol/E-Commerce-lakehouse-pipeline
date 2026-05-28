@@ -108,7 +108,8 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: [1, 2, 3, 4, 5]
+              arguments:
+                values: [1, 2, 3, 4, 5]
 
   - name: stg_sessions
     description: "Cleaned user clickstream session metadata tracking."
@@ -120,3 +121,88 @@ models:
           - not_null
       - name: customer_id
         description: "Foreign key mapping the session to an authorized customer."
+
+
+  - name: fact_orders
+    description: "The central transactional ledger for the e-commerce platform. Contains order headers and line-item metrics with subtotals."
+    columns:
+      - name: order_id
+        description: "The primary key for this table. Represents a unique line item within an order."
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_id
+        description: "The customer id"
+        tests:
+          - not_null
+
+
+  - name: dim_customers
+    description: "Customer profile dimension table. Enriches core customer demographics."
+    columns:
+      - name: customer_id
+        description: "The primary key for this table. Unique identifier for each customer."
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_segment
+        description: "Calculated executive grouping based on total order frequency."
+        tests:
+          - accepted_values:
+              arguments:         
+                values: ['VIP', 'Repeat', 'One-Time', 'Prospect']
+
+  - name: fact_user_session
+    description: "Behavioral clickstream session profiles aggregating granular user telemetry into distinct web interaction journeys."
+    columns:
+      - name: session_id
+        description: "The primary key for this table. Unique identifier for a clickstream session."
+        tests:
+          - unique
+          - not_null
+
+      - name: converted_to_checkout
+        description: "Binary funnel flag indicating if the user reached the final checkout event during the session (1 = Yes, 0 = No)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+
+  - name: dim_channels
+    description: "Marketing Funnel Dimension table. Tracks the absolute first acquisition contact and traffic source channel type for each customer."
+    columns:
+      - name: customer_id
+        description: "The primary key for this table."
+        tests:
+          - unique
+          - not_null
+
+      - name: channel_key
+        description: "Generated surrogate hash key based on the traffic source name."
+        tests:
+          - not_null
+
+      - name: channel_type
+        description: "Strategic marketing category mapping for executive channel analysis."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Paid Social', 'Paid Search', 'Email Marketing', 'Organic/Inbound', 'Referral/Other']
+
+  - name: dim_products
+    description: "Table containing list of products."
+    columns:
+      - name: product_id
+        description: "The primary key for this table."
+        tests:
+          - unique
+          - not_null
+
+      - name: rating_tier
+        description: "Grouping based on review rating"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['great', 'good', 'poor', 'no review']

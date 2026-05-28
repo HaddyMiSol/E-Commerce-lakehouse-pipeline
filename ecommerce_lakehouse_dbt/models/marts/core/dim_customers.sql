@@ -13,10 +13,29 @@ order_metrics as (
     group by customer_id
 ),
 
+acquisition_channels as (
+    select 
+        customer_id,
+        channel_name,
+        channel_type,
+        acquired_at
+    from {{ ref('dim_channels') }}
+),
+
 final as (
     select
         c.customer_id,
         c.full_name,
+
+        case
+            when c.age <15 then '<15'
+            when c.age between 15 and 24 then '15-14'
+            when c.age between 25 and 39 then '24-39'
+            when c.age between 40 and 49 then '40-49'
+            when c.age >=50 then '50+'
+            else 'others'
+        end as age_group,
+
         c.email,
         c.country,
         c.signup_date,
@@ -38,11 +57,14 @@ final as (
             when c.signup_date < om.first_order_date then 'signedup_before_order'
             when c.signup_date > om.first_order_date and c.signup_date < om.most_recent_order_date then 'signedup_after_first_order'
             else 'No order'
-        end as signup_order_period
+        end as signup_order_period,
+
+        ac.channel_type
 
 
     from customers c
     left join order_metrics om on c.customer_id = om.customer_id
+    left join acquisition_channels ac on c.customer_id = ac.customer_id
 )
 
 select * from final
