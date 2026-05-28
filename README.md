@@ -31,7 +31,7 @@ See images below;
 ![System Architecture](./images/kaggle_s3_streamer.png)
 ![System Architecture](./images/s3_databricks_ingestion.png)
 ![System Architecture](./images/tables.png)
-![System Architecture](./images/staging_data.png)
+![System Architecture](./images/staging%20data.png)
 ![System Architecture](./images/schema_gold.png)
 
 ---
