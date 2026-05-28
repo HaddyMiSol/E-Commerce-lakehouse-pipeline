@@ -10,22 +10,29 @@ The pipeline ingests multi-part e-commerce retail data streams from a Kaggle API
 ## System Architecture (Phase 1)
 The data platform is engineered with a completely decoupled storage and compute layer, utilizing zero-local-footprint serverless microservices:
 
-[Kaggle API] 
-     │
-     ▼ (Zero-Local-Footprint Streaming via Python/Boto3)         
-[AWS S3 Bucket: `kaggle-dataset-haddy/bronze/`]
-     │
-     ▼ (Incremental Batch Loading via Auto Loader)
-[Databricks Serverless Compute] ──(Unity Catalog Managed Volumes)──► [Metadata Checkpoints/Schemas] 
-     │
-     ▼ (Dynamic Multi-Table Loop)
-[Workspace Catalog: `schema_bronze` Schema Delta Tables] 
+```text
+[ Kaggle API ] 
+       │
+       ▼ (Zero-Local-Footprint Streaming via Python/Boto3)         
+[ AWS S3 Bucket: `kaggle-dataset-haddy/bronze/` ]
+       │
+       ▼ (Incremental Batch Loading via Auto Loader)
+[ Databricks Serverless: `schema_bronze` ] (Raw Operational Logs)
+       │
+       ▼ (dbt Core Cleansing, Casting, & Normalization)
+[ Databricks Serverless: `schema_silver` ] (Cleaned Staging Tables)
+       │
+       ▼ (dbt Core Star Schema Dimensional Modeling)
+[ Databricks Serverless: `schema_gold`   ] (Analytics-Ready Marts)
+```
 
 See images below;
 
 ![System Architecture](./images/kaggle_s3_streamer.png)
 ![System Architecture](./images/s3_databricks_ingestion.png)
 ![System Architecture](./images/tables.png)
+![System Architecture](./images/staging_data.png)
+![System Architecture](./images/schema_gold.png)
 
 ---
 
@@ -58,6 +65,20 @@ See images below;
   * Detected **19,000+ anomalous records** where order item subtotals mathematically exceeded checkout totals.
   * Caught temporal anomalies where a customer's `signup_date` falsely trailed their `first_order_date` (due to timezone variance or guest checkouts).
   * **Resolution:** Engineered defensive transformation logic within `generated_customer_first_order.sql` and the staging layers using conditional SQL expressions (`case when` boundary capping and strict filtering) to self-heal anomalies automatically at runtime.
+
+### 5. Architecting an Optimized Gold Analytics Layer & Star Schema (Phase 3)
+* **The Challenge:** Staging layers are highly operational and fragmented. Querying them directly from business intelligence dashboards like Power BI or Tableau causes massive join overhead, slowing down executive reporting performance.
+
+* **The Solution:** Architected a high-performance Star Schema (Facts & Dimensions) optimized for analytical read-velocity. Flattened transactional headers into centralized metrics, built descriptive Customer 360 registries, and implemented custom dbt routing using folder configuration parameters and custom macros to force materialization as physical Delta tables directly inside a dedicated schema_gold environment in Databricks.
+
+### 6. Resolving Grain Duplication & Enforcing Referential Integrity (Phase 3)
+* **The Challenge:** Initial data quality testing on the Gold layer caught critical primary key failures: unique_dim_products_product_id threw 1,074 duplicate failures due to catalog tracking duplicates, and generating surrogate tracking hashes across a granular customer-level marketing funnel caused multi-row key clashing.
+
+* **The Solution:** Engineered a defensive modeling architecture:
+* Pre-aggregated review scores inside a dedicated CTE by calculating the avg_review_rating per product prior to joining. This isolated the calculation and safely prevented grain duplication, ensuring that the master product_id remained unique even when a single item received multiple customer ratings.
+
+* Extracted and aggregated web traffic clickstream logs inside dim_channels.sql using row_number() over (partition by customer_id order by session_started_at asc) to isolate the unique original customer acquisition channel contact.
+* Enforced rigid data governance constraints using unique, not_null and accepted_values.
  
 See images below;
 
@@ -69,6 +90,27 @@ See images below;
 ![Second Test Resolution Part 1](./images/failed%20test%202%20resolved%201.png)
 ![Second Test Resolution Part 2](./images/failed%20test%202%20resolved.png)
 ![Staging Data Profile](./images/staging%20data.png)
+![Gold layer Test Failure](./images/dbt%20test%20fail_gold%20layer.png)
+![Gold Data Profile](./images/schema_gold.png)
+
+---
+
+## Gold Layer Data Model Directory Blueprint
+The finalized analytical layer structures data into standard Kimball-modeled core matrices:
+
+## Dimension Tables (dim_...)
+* **dim_customers:* Master Customer 360 profile. Aggregates behavioral purchase metrics directly into descriptive demographics to provide Lifetime Value (LTV), order frequency, signup latency, and RFM consumer segmentation.
+
+* **dim_products:* Unique inventory catalog registry. Houses cleaned names, review rating per product, and unit retail price metrics.
+
+* **dim_channels:* Marketing funnel dimension mapping user acquisition paths back to strategic buckets (Paid Social, Paid Search, Email Marketing, Organic/Inbound).
+
+* **dim_date:* Time-intelligence calendar matrix generated using dbt-utils spines, enabling seamless analysis of weekend vs. weekday consumer activity and seasonal metrics.
+
+## Fact Tables (fact_...)
+* **fact_orders:* Central transactional ledger capturing real-time sales velocity, item counts, unit prices, recalculated line-subtotals, and logistics order lifecycle states.
+
+* **fact_user_sessions:* Clickstream behavioral engine aggregating event interaction journeys to expose page views, and cart additions per session.
 
 ---
 
@@ -77,13 +119,38 @@ See images below;
 ecommerce_lakehouse_pipeline/
 ├── databricks_notebooks/      # Phase 1: Python/PySpark Ingestion Scripts
 ├── ingestion_architecture/    # System configuration mappings
-└── ecommerce_lakehouse_dbt/   # Phase 2: Complete dbt Core Workspace
+└── ecommerce_lakehouse_dbt/   # Phase 2 & 3: Complete dbt Core Workspace
+    ├── macros/
+    │   └── generate_schema_name.sql # Custom overriding macro for direct schema target isolation
     ├── models/
     │   ├── staging/           # Silver Layer: Staging models & custom schema validations
-    │   └── marts/             # Gold Layer: Dimensional star-schema models
-    ├── dbt_project.yml        # Core framework configurations
+    │   └── marts/
+    │       └── core/          # Gold Layer: Star-schema models and companion tests
+    │           ├── dim_channels.sql   # Marketing acquisition touchpoints model
+    │           ├── dim_customers.sql  # Customer 360 RFM profile model
+    │           ├── dim_date.sql       # Automated calendar date model
+    │           ├── dim_products.sql   # Deduplicated product master model
+    │           ├── fact_orders.sql    # Central transactional ledger
+    │           └── fact_user_session.sql # Behavioral clickstream session model
+    │   ├── schema.yml         # Automated data quality checks & columns descriptions
+    │   ├── sources.yml           # Data Source
+    ├── dbt_project.yml        # Core framework configurations & target schema configurations
     └── packages.yml           # External open-source testing dependencies (dbt utils)
 ```
+
+## Pipeline Execution & Verification Commands
+To test, compile, and run the complete Medallion Architecture data warehouse pipeline locally or inside an orchestrator:
+#### 1. Verify connection connectivity from local dbt setup to Databricks Serverless
+dbt debug
+
+#### 2. Re-compile the macro configurations and DAG dependency graph
+dbt compile
+
+#### 3. Execute transformations and materialize tables across Silver and Gold layers
+dbt run
+
+#### 4. Trigger the data validation testing suite to confirm data integrity
+dbt test
 
 
 ## Current Progress & Next Steps
@@ -93,4 +160,6 @@ ecommerce_lakehouse_pipeline/
 - [x] Phase 2: Connect **dbt Core** locally via Databricks SQL Warehouses / Personal Compute.
 - [x] Phase 2: Build out the `Silver` layer (cleaning, deduplication, timestamp normalization).
 - [x] Phase 2: Implement automated testing/data quality check and handle real-world logical data anomalies.
-- [ ] Phase 3: Architect the `Gold` layer dimensional star-schema models (Facts and Dimensions).
+- [x] Phase 3: Architect the `Gold` layer dimensional star-schema models (Facts and Dimensions).
+- [x] Phase 3: Enforce custom data routing directly into a dedicated Databricks schema_gold environment.
+- [x] Phase 3: Debug and resolve grain replication anomalies through robust dbt assertion testing.
